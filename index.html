@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Grammar Breakout — Light Theme (WCAG‑A)</title>
+<style>
+  :root{
+    --bg:#FFFFFF;            /* page background */
+    --panel:#F5F7FA;         /* cards/panels */
+    --panel-border:#CBD5E1;
+    --text:#0B121A;          /* primary text (dark) */
+    --muted:#334155;         /* secondary text (dark) */
+    --accent:#0B57D0;        /* primary button */
+    --accent-hover:#0A47AD;
+    --focus:#1D4ED8;
+    --error:#B00020;
+    --ok:#0F9D58;
+    --canvas-bg:#FAFBFD;     /* game field background (light) */
+    --canvas-grid:#E5E7EB;
+    --canvas-hud:rgba(0,0,0,0.06);
+    --paddle:#111827;        /* dark game pieces for strong contrast */
+    --ball:#111827;
+    --brick-1:#374151;       /* dark slate */
+    --brick-2:#0B57D0;       /* dark blue */
+    --brick-3:#7C2D12;       /* dark brown-red */
+    --brick-4:#065F46;       /* dark green */
+
+    --radius:12px;
+    --radius-sm:8px;
+    --shadow:0 1px 2px rgba(0,0,0,0.05), 0 6px 18px rgba(0,0,0,0.08);
+  }
+
+  /* Basic reset */
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    background:var(--bg);
+    color:var(--text);
+    line-height:1.5;
+  }
+  a{color:var(--accent)}
+  a:focus, button:focus, [tabindex]:focus, input:focus, select:focus, textarea:focus{
+    outline:3px solid var(--focus);
+    outline-offset:2px;
+  }
+
+  /* Layout */
+  header{
+    background:var(--panel);
+    border-bottom:1px solid var(--panel-border);
+    position:sticky; top:0; z-index:5;
+  }
+  .wrap{
+    max-width:1100px;
+    margin-inline:auto;
+    padding:16px;
+  }
+  .header-row{
+    display:flex;
+    gap:16px;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+  }
+  .title{
+    display:flex; align-items:center; gap:12px;
+  }
+  .title h1{
+    font-size:1.25rem;
+    margin:0;
+  }
+  .hud{
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  }
+  .badge{
+    background:#fff;
+    color:var(--muted);
+    border:1px solid var(--panel-border);
+    border-radius:999px;
+    padding:6px 10px;
+    font-weight:600;
+    display:inline-flex; gap:6px; align-items:center;
+    min-width:max-content;
+  }
+  .badge b{color:var(--text)}
+
+  nav.controls{
+    display:flex; gap:8px; flex-wrap:wrap;
+  }
+  button{
+    appearance:none;
+    border:1px solid var(--panel-border);
+    background:#fff;
+    color:var(--text);
+    padding:10px 14px;
+    border-radius:10px;
+    font-weight:600;
+    cursor:pointer;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  button.primary{
+    background:var(--accent);
+    color:#fff;
+    border-color:transparent;
+  }
+  button.primary:hover{ background:var(--accent-hover) }
+  button.toggle[aria-pressed="true"]{
+    background:var(--text);
+    color:#fff;
+    border-color:var(--text);
+  }
+  button:hover{
+    background:#fff;
+    border-color:#94A3B8;
+  }
+
+  main{
+    padding:24px 0;
+  }
+  .grid{
+    display:grid;
+    gap:16px;
+    grid-template-columns:1.2fr 1fr;
+  }
+  @media (max-width: 900px){
+    .grid{ grid-template-columns:1fr }
+  }
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:16px;
+  }
+  .panel h2{
+    margin:0 0 8px 0;
+    font-size:1.1rem;
+  }
+
+  .canvas-wrap{
+    background:var(--panel);
+    border:1px dashed var(--panel-border);
+    border-radius:var(--radius-sm);
+    padding:8px;
+  }
+  canvas{
+    display:block;
+    width:100%;
+    height:auto;
+    aspect-ratio:16/9; /* CSS size; JS will DPR-scale backing store */
+    background:var(--canvas-bg);
+    border-radius:10px;
+    border:1px solid var(--panel-border);
+  }
+
+  .puzzle p{
+    color:var(--muted);
+    margin-top:0;
+  }
+
+  .stats{
+    display:grid; grid-template-columns:repeat(4,1fr);
+    gap:12px; margin-top:8px;
+  }
+  @media (max-width:700px){ .stats{ grid-template-columns:repeat(2,1fr) } }
+  .stat{
+    background:#fff; border:1px solid var(--panel-border); border-radius:10px;
+    padding:12px;
+  }
+  .stat .label{ color:var(--muted); font-weight:600 }
+  .stat .value{ font-size:1.25rem; font-weight:800 }
+
+  footer{
+    margin-top:24px;
+    border-top:1px solid var(--panel-border);
+    color:var(--muted);
+    background:var(--panel);
+  }
+  footer .wrap{ padding-block:16px }
+
+  /* Dialog (question modal) */
+  dialog{
+    border:none; border-radius:12px; padding:0; width:min(720px, 92vw);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    background:var(--panel);
+    color:var(--text);
+  }
+  dialog::backdrop{ background: rgba(0,0,0,0.35) }
+  .modal-header{
+    padding:14px 16px; border-bottom:1px solid var(--panel-border);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .modal-body{ padding:16px; }
+  .q-text{ font-weight:700; margin:0 0 12px 0; }
+  .choices{ display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+  .choice{
+    border:1px solid var(--panel-border);
+    background:#fff;
+    border-radius:10px;
+  }
+  .choice input{ position:absolute; inset:0; width:1px; height:1px; opacity:0; }
+  .choice label{
+    display:flex; gap:12px; align-items:center; cursor:pointer;
+    padding:12px 14px;
+  }
+  .choice label span.opt{ 
+    width:24px; height:24px; border-radius:999px; 
+    border:2px solid var(--panel-border); display:inline-flex; align-items:center; justify-content:center; 
+    background:#fff; font-size:.9rem; color:var(--muted); font-weight:800;
+  }
+  .choice input:focus + label{ outline:3px solid var(--focus); outline-offset:3px }
+  .choice input:checked + label span.opt{
+    border-color:var(--accent); color:#fff; background:var(--accent);
+  }
+
+  .modal-footer{
+    display:flex; gap:8px; padding:16px; border-top:1px solid var(--panel-border);
+    background:#fff; border-bottom-left-radius:12px; border-bottom-right-radius:12px;
+  }
+  .feedback{
+    margin-top:12px; font-weight:700;
+  }
+  .feedback.ok{ color:var(--ok) }
+  .feedback.err{ color:var(--error) }
+
+  /* Screenreader-only region */
+  .sr-only{
+    position:absolute !important;
+    width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+    clip:rect(0,0,0,0); white-space:nowrap; border:0;
+  }
+
+  /* Canvas overlay states */
+  .overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); font-weight:800; font-size:clamp(14px, 2vw, 18px);
+    pointer-events:none;
+  }
+  .game-panel{
+    position:relative;
+  }
+  .overlay .chip{
+    background:var(--canvas-hud);
+    backdrop-filter:saturate(90%) blur(2px);
+    padding:8px 12px; border-radius:999px; border:1px solid var(--panel-border);
+  }
+</style>
+</head>
+<body>
+  <aainSkip to main content</a>
+
+  <header>
+    <div class="wrap">
+      <div class="header-row">
+        <div class="title" aria-describedby="subtitle">
+          <h1>Grammar Breakout — Light Theme (WCAG‑A)</h1>
+          <span id="subtitle" class="sr-only">Introductory college-level grammar game. Answer questions to launch balls.</span>
+        </div>
+        <div class="hud" role="group" aria-label="Heads up display">
+          <span class="badge" aria-live="off"><span>Level</span> <b id="hud-level">1</b></span>
+          <span class="badge" aria-live="off"><span>Score</span> <b id="hud-score">0</b></span>
+          <span class="badge" aria-live="off"><span>Accuracy</span> <b id="hud-acc">0%</b></span>
+        </div>
+        <nav class="controls" aria-label="Game controls">
+          <button id="newGameBtn" type="button" title="Start a new game (reset)">New game</button>
+          <button id="pauseBtn" type="button" class="toggle" aria-pressed="false" title="Pause (P)">Pause</button>
+          <button id="muteBtn" type="button" class="toggle" aria-pressed="false" title="Mute (M)">Mute</button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="wrap" role="main">
+    <div class="grid">
+      <section class="panel game-panel" aria-labelledby="game-h">
+        <h2 id="game-h">Game</h2>
+        <div class="canvas-wrap">
+          <canvas id="game" role="img" aria-label="Breakout game field. Use Left/Right arrows or A/D to move the paddle."></canvas>
+        </div>
+        <div id="canvasOverlay" class="overlay" aria-hidden="true" hidden>
+          <div class="chip" id="overlayText">Paused</div>
+        </div>
+      </section>
+
+      <aside class="panel puzzle" aria-labelledby="puzzle-h">
+        <h2 id="puzzle-h">Grammar Puzzle</h2>
+        <p>Answer a question to earn a ball. On a correct answer, one ball launches from the paddle center.</p>
+        <button id="questionBtn" class="primary" type="button" aria-describedby="q-help">
+          Answer a question to fire a ball
+        </button>
+        <div id="q-help" class="sr-only">
+          Opens a modal with a multiple‑choice grammar question. Enter submits, Escape closes.
+        </div>
+
+        <div class="stats" role="group" aria-label="Statistics">
+          <div class="stat">
+            <div class="label">Bricks cleared</div>
+            <div class="value" id="stat-bricks">0</div>
+          </div>
+          <div class="stat">
+            <div class="label">Questions answered</div>
+            <div class="value" id="stat-answered">0</div>
+          </div>
+          <div class="stat">
+            <div class="label">Correct</div>
+            <div class="value" id="stat-correct">0</div>
+          </div>
+          <div class="stat">
+            <div class="label">Accuracy</div>
+            <div class="value" id="stat-acc">0%</div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <section class="panel" aria-labelledby="about-h" style="margin-top:16px">
+      <h2 id="about-h">How to play</h2>
+      <ul>
+        <li>Paddle with <kbd>←</kbd>/<kbd>→</kbd> or <kbd>A</kbd>/<kbd>D</kbd>.</li>
+        <li>Press the blue button to answer a question. <strong>Correct</strong> launches one ball (+50 points).</li>
+        <li>+10 per brick. Clear all bricks to advance a level; speed increases and the paddle narrows.</li>
+        <li>Pause with <kbd>P</kbd>. Mute with <kbd>M</kbd>. Enter submits in the question dialog; Esc closes it.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer role="contentinfo">
+    <div class="wrap">
+      <p>Accessibility: Semantic landmarks, visible focus, keyboard support, and polite live announcements. No time limits while the question dialog is open.</p>
+    </div>
+  </footer>
+
+  <!-- Live region for announcements -->
+  <div id="announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- Question modal -->
+  <dialog id="questionDialog" aria-labelledby="qd-title" aria-describedby="qd-desc">
+    <div class="modal-header">
+      <h3 id="qd-title" style="margin:0;font-size:1.05rem">Grammar Question</h3>
+      <button id="closeDialogBtn" type="button" title="Close (Esc)">Close</button>
+    </div>
+    <form id="questionForm" method="dialog">
+      <div class="modal-body">
+        <p id="qd-desc" class="q-text">Loading question…</p>
+        <ul class="choices" id="choicesList">
+          <!-- Radios injected -->
+        </ul>
+        <div id="feedback" class="feedback" aria-live="polite"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="submitAnswerBtn" class="primary" type="submit">Submit answer</button>
+        <button id="nextQuestionBtn" type="button" hidden>Next question</button>
+      </div>
+      <!-- Hidden submit to allow Enter with radios -->
+      <input type="submit" hidden />
+    </form>
+  </dialog>
+
+<script>
+/* ================================
+   Utilities & Global State
+   ================================ */
+const dpr = () => (window.devicePixelRatio || 1);
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+const rand = (min, max) => Math.random()*(max-min)+min;
+
+const state = {
+  level: 1,
+  score: 0,
+  questionsAnswered: 0,
+  correctAnswers: 0,
+  bricksCleared: 0,
+  paused: false,
+  muted: false,
+  modalOpen: false,
+  balls: [],
+  paddle: { x: 0, y: 0, w: 160, h: 16, speed: 700 },
+  input: { left: false, right: false },
+  bricks: [],
+  levelQuestions: [],
+  questionIndex: 0
+};
+
+let lastRAF = 0;
+let lastFocus = null;
+
+/* ================================
+   Canvas Setup (16:9 responsive)
+   ================================ */
+const canvas = $('#game');
+const overlay = $('#canvasOverlay');
+const overlayText = $('#overlayText');
+const ctx = canvas.getContext('2d', { alpha: false });
+
+function resizeCanvas() {
+  // Fit to container width with 16:9 aspect
+  const wrap = canvas.parentElement;
+  const cssWidth = wrap.clientWidth;
+  const cssHeight = Math.round(cssWidth * 9/16);
+  const ratio = dpr();
+
+  canvas.style.width = cssWidth + 'px';
+  canvas.style.height = cssHeight + 'px';
+  canvas.width = Math.floor(cssWidth * ratio);
+  canvas.height = Math.floor(cssHeight * ratio);
+
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.scale(ratio, ratio);
+
+  // Keep paddle on-screen after resize
+  state.paddle.y = cssHeight - 40;
+  state.paddle.x = clamp(state.paddle.x, 0, cssWidth - state.paddle.w);
+}
+window.addEventListener('resize', resizeCanvas);
+
+/* ================================
+   Audio (WebAudio tiny beeps)
+   ================================ */
+let audioCtx;
+let audioReady = false;
+function ensureAudio() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch(e) { /* ignore audio errors */ }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume().then(()=>{ audioReady = true; }).catch(()=>{});
+  } else {
+    audioReady = true;
+  }
+}
+function beep(freq=440, duration=0.06, type='sine', gain=0.05) {
+  if (state.muted || !audioCtx || !audioReady) return;
+  const t0 = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(gain, t0);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(g).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.02);
+}
+['pointerdown','keydown'].forEach(evt=>{
+  window.addEventListener(evt, ensureAudio, { once: true, passive: true });
+});
+
+/* ================================
+   Announcements (live region)
+   ================================ */
+function announce(msg) {
+  const live = $('#announcer');
+  live.textContent = msg;
+}
+
+/* ================================
+   Question Bank (difficulty 1-3)
+   ================================ */
+const QUESTION_BANK = [
+  // Articles
+  {q:'Choose the correct article: I saw ___ eagle flying overhead.', a:['a','an','the','no article'], c:1, d:1},
+  {q:'Choose the correct article: She is ___ honest person.', a:['a','an','the','no article'], c:1, d:1},
+  {q:'Choose the correct article: ___ Pacific Ocean is vast.', a:['a','an','the','no article'], c:2, d:1},
+
+  // Subject–verb agreement
+  {q:'Subject–verb agreement: The list of items ___ on the table.', a:['are','were','is','have been'], c:2, d:1},
+  {q:'Subject–verb agreement: Neither the students nor the teacher ___ prepared.', a:['were','are','is','have'], c:2, d:2},
+  {q:'Subject–verb agreement: Data ___ often analyzed statistically in this course.', a:['is','are','has been','was'], c:1, d:2},
+
+  // Pronoun case/agreement
+  {q:'Pronoun case: Between you and ___, this exam was tough.', a:['I','me','myself','mine'], c:1, d:1},
+  {q:'Pronoun agreement: Each of the players must bring ___ own water.', a:['their','his or her','its','they\'re'], c:1, d:2},
+  {q:'Pronoun reference: If a student loses ___ ID, they should report it.', a:['his','his or her','their','its'], c:2, d:2},
+
+  // Basic tense
+  {q:'Verb tense: By next week, she ___ the draft.', a:['finishes','will finish','will have finished','has finished'], c:2, d:2},
+  {q:'Verb tense: I ___ lunch when you called.', a:['have','had','was having','will have'], c:2, d:1},
+  {q:'Sequence of tenses: He said he ___ late.', a:['is','was','will be','has been'], c:1, d:1},
+
+  // Fragments / run-ons / parallelism
+  {q:'Identify the error: "Went to the store without my wallet."', a:['Run-on','Fragment','Comma splice','Parallelism'], c:1, d:1},
+  {q:'Fix the run-on: "She writes quickly she also revises carefully."', a:['Add a comma only','Use a semicolon','Remove "also"','Make it two fragments'], c:1, d:2},
+  {q:'Parallelism: "He likes hiking, to swim, and biking." The corrected middle item is:', a:['to swimming','swimming','to hiked','hike'], c:1, d:2},
+  {q:'Comma splice: "It rained heavily, the game was canceled." Best fix:', a:['Replace comma with period','Add another comma','Remove "heavily"','Use a colon'], c:0, d:2},
+
+  // More SVA / articles / misc
+  {q:'Choose the correct verb: Each of the essays ___ graded.', a:['were','are','is','have been'], c:2, d:1},
+  {q:'Article use: We visited ___ Louvre in Paris.', a:['a','an','the','no article'], c:2, d:1},
+  {q:'Pronoun case: It was ___ who finished first.', a:['her','she','me','them'], c:1, d:2},
+  {q:'Parallelism: "The job requires coding, testing, and ___." Choose the best completion.', a:['to document','documented','documentation','to documentation'], c:2, d:3},
+];
+
+function shuffle(arr){
+  const a = arr.slice();
+  for (let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function difficultyCapForLevel(lv){
+  if (lv <= 1) return 1;
+  if (lv === 2) return 2;
+  return 3; // L3+
+}
+
+function questionsForLevel(lv, count=5){
+  const cap = difficultyCapForLevel(lv);
+  const eligible = QUESTION_BANK.filter(x=>x.d <= cap);
+  const picks = shuffle(eligible).slice(0, Math.min(count, eligible.length));
+  return picks;
+}
+
+/* ================================
+   Modal / Question Flow
+   ================================ */
+const dialog = $('#questionDialog');
+const questionBtn = $('#questionBtn');
+const questionForm = $('#questionForm');
+const qText = $('#qd-desc');
+const choicesList = $('#choicesList');
+const feedbackEl = $('#feedback');
+const submitBtn = $('#submitAnswerBtn');
+const nextBtn = $('#nextQuestionBtn');
+const closeDialogBtn = $('#closeDialogBtn');
+
+function openDialogWithNextQuestion() {
+  state.modalOpen = true;
+  state.paused = true;
+  updateOverlay();
+  feedbackEl.textContent = '';
+  nextBtn.hidden = true;
+  submitBtn.disabled = false;
+
+  // Fresh pool if needed
+  if (!state.levelQuestions.length || state.questionIndex >= state.levelQuestions.length){
+    state.levelQuestions = questionsForLevel(state.level, 5);
+    state.questionIndex = 0;
+  }
+  renderQuestion(state.levelQuestions[state.questionIndex]);
+  lastFocus = document.activeElement;
+  dialog.showModal();
+
+  // Focus first radio
+  const firstInput = choicesList.querySelector('input[type="radio"]');
+  if (firstInput) firstInput.focus();
+}
+
+function renderQuestion(item){
+  qText.textContent = item.q;
+  choicesList.innerHTML = '';
+  item.a.forEach((choiceText, i)=>{
+    const li = document.createElement('li');
+    li.className = 'choice';
+    const id = `opt_${Date.now()}_${i}`;
+    li.innerHTML = `
+      <input id="${id}" name="answer" type="radio" value="${i}">
+      <label for="${id}"><span class="opt">${String.fromCharCode(65+i)}</span> <span>${choiceText}</span></label>
+    `;
+    choicesList.appendChild(li);
+  });
+}
+
+function closeDialogRestoreFocus(){
+  dialog.close();
+  state.modalOpen = false;
+  state.paused = false;
+  updateOverlay();
+  if (lastFocus && typeof lastFocus.focus === 'function') {
+    lastFocus.focus();
+  } else {
+    questionBtn.focus();
+  }
+}
+
+closeDialogBtn.addEventListener('click', closeDialogRestoreFocus);
+dialog.addEventListener('cancel', (e)=>{ e.preventDefault(); closeDialogRestoreFocus(); });
+
+questionBtn.addEventListener('click', openDialogWithNextQuestion);
+
+// Submit handler
+questionForm.addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const radios = choicesList.querySelectorAll('input[type="radio"]');
+  let selected = -1;
+  radios.forEach(r=>{ if(r.checked) selected = parseInt(r.value,10); });
+  if (selected < 0){
+    feedbackEl.textContent = 'Please choose an option.';
+    feedbackEl.className = 'feedback err';
+    return;
+  }
+
+  const item = state.levelQuestions[state.questionIndex];
+  const correct = (selected === item.c);
+
+  state.questionsAnswered++;
+  if (correct) state.correctAnswers++;
+  updateStatsHUD();
+
+  // Feedback + actions
+  if (correct){
+    feedbackEl.textContent = 'Correct! Launching a ball…';
+    feedbackEl.className = 'feedback ok';
+    state.score += 50;
+    updateStatsHUD();
+    launchBallFromPaddle();
+    announce('Correct. Ball launched.');
+    // Close shortly after correct
+    submitBtn.disabled = true;
+    setTimeout(()=>closeDialogRestoreFocus(), 700);
+    state.questionIndex++;
+  } else {
+    feedbackEl.textContent = 'Not quite. Try the next one.';
+    feedbackEl.className = 'feedback err';
+    announce('Incorrect. Try the next one.');
+    // Advance to next question in the same pool; keep dialog open
+    state.questionIndex++;
+    setTimeout(()=>{
+      if (state.questionIndex >= state.levelQuestions.length){
+        state.levelQuestions = questionsForLevel(state.level, 5);
+        state.questionIndex = 0;
+      }
+      feedbackEl.textContent = '';
+      renderQuestion(state.levelQuestions[state.questionIndex]);
+      // Focus first option
+      const first = choicesList.querySelector('input[type="radio"]');
+      if (first) first.focus();
+    }, 900);
+  }
+});
+
+/* ================================
+   Game Core
+   ================================ */
+function levelConfig(lv){
+  const rows = clamp(3 + (lv-1), 3, 8);
+  const cols = clamp(6 + (lv-1), 6, 12);
+  const speed = 420 + (lv-1)*40;      // px/s base ball speed
+  const paddleW = Math.max(90, Math.floor((0.18 - (lv-1)*0.015) * canvas.clientWidth)); // fraction of width
+  return { rows, cols, speed, paddleW };
+}
+
+function initLevel(lv){
+  state.level = lv;
+
+  // Bricks grid
+  const { rows, cols } = levelConfig(lv);
+  const marginX = 24, marginY = 24;
+  const topOffset = 50;
+  const areaW = canvas.clientWidth - marginX*2;
+  const brickGap = 8;
+  const brickW = (areaW - (cols-1)*brickGap) / cols;
+  const brickH = 22;
+
+  const colors = ['--brick-1','--brick-2','--brick-3','--brick-4'];
+  state.bricks = [];
+  for (let r=0;r<rows;r++){
+    for (let c=0;c<cols;c++){
+      state.bricks.push({
+        x: marginX + c*(brickW + brickGap),
+        y: topOffset + r*(brickH + brickGap),
+        w: brickW,
+        h: brickH,
+        color: getComputedStyle(document.documentElement).getPropertyValue(colors[r % colors.length]).trim(),
+        alive: true
+      });
+    }
+  }
+
+  // Paddle
+  state.paddle.w = levelConfig(lv).paddleW;
+  state.paddle.h = 14;
+  state.paddle.x = (canvas.clientWidth - state.paddle.w)/2;
+  state.paddle.y = canvas.clientHeight - 40;
+
+  // Adjust existing balls to level speed
+  state.balls = [];
+  updateStatsHUD();
+  announce(`Level ${lv} start.`);
+}
+
+function launchBallFromPaddle(){
+  const { speed } = levelConfig(state.level);
+  const x = state.paddle.x + state.paddle.w/2;
+  const y = state.paddle.y - 8;
+  // Slight random horizontal component
+  const angle = rand(-0.35, 0.35); // radians
+  const vx = Math.sin(angle) * speed;
+  const vy = -Math.cos(angle) * speed;
+  state.balls.push({ x, y, r: 6, vx, vy });
+  beep(720, 0.06, 'square', 0.04);
+}
+
+function update(dt){
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+
+  // Move paddle
+  const pxs = state.paddle.speed * dt;
+  if (state.input.left) state.paddle.x -= pxs;
+  if (state.input.right) state.paddle.x += pxs;
+  state.paddle.x = clamp(state.paddle.x, 0, W - state.paddle.w);
+
+  // Update balls
+  for (let i=state.balls.length-1;i>=0;i--){
+    const b = state.balls[i];
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+
+    // Walls
+    if (b.x - b.r < 0){ b.x = b.r; b.vx = Math.abs(b.vx); beep(320, 0.04, 'triangle', 0.03); }
+    if (b.x + b.r > W){ b.x = W - b.r; b.vx = -Math.abs(b.vx); beep(320, 0.04, 'triangle', 0.03); }
+    if (b.y - b.r < 0){ b.y = b.r; b.vy = Math.abs(b.vy); beep(280, 0.04, 'triangle', 0.03); }
+
+    // Bottom (ball loss)
+    if (b.y - b.r > H){
+      state.balls.splice(i,1);
+      beep(160, 0.10, 'sawtooth', 0.05);
+      continue;
+    }
+
+    // Paddle collision (AABB circle rough)
+    const p = state.paddle;
+    if (b.y + b.r >= p.y && b.y + b.r <= p.y + p.h && b.x >= p.x && b.x <= p.x + p.w && b.vy > 0){
+      // Reflect upward, adjust angle by hit position
+      const hit = ((b.x - (p.x + p.w/2)) / (p.w/2)); // -1..1
+      const speed = Math.hypot(b.vx, b.vy);
+      const angle = (-Math.PI/3) * hit; // max ~±60°
+      b.vx = speed * Math.sin(angle);
+      b.vy = -Math.abs(speed * Math.cos(angle));
+      b.y = p.y - b.r - 0.1; // prevent sticking
+      beep(520, 0.05, 'square', 0.04);
+    }
+
+    // Brick collisions (simple check, one brick per frame)
+    for (let j=0;j<state.bricks.length;j++){
+      const br = state.bricks[j];
+      if (!br.alive) continue;
+      if (b.x > br.x && b.x < br.x + br.w && b.y > br.y && b.y < br.y + br.h){
+        // Decide reflection axis by penetration depth
+        const cx = br.x + br.w/2, cy = br.y + br.h/2;
+        const dx = (b.x - cx) / (br.w/2);
+        const dy = (b.y - cy) / (br.h/2);
+        if (Math.abs(dx) > Math.abs(dy)){
+          b.vx = (dx>0? Math.abs(b.vx) : -Math.abs(b.vx));
+        } else {
+          b.vy = (dy>0? Math.abs(b.vy) : -Math.abs(b.vy));
+        }
+        br.alive = false;
+        state.bricksCleared++;
+        state.score += 10;
+        updateStatsHUD();
+        beep(680, 0.05, 'triangle', 0.04);
+        break;
+      }
+    }
+  }
+
+  // Level clear?
+  const remaining = state.bricks.filter(b=>b.alive).length;
+  if (remaining === 0){
+    state.level++;
+    initLevel(state.level);
+  }
+}
+
+function draw(){
+  const W = canvas.clientWidth, H = canvas.clientHeight;
+
+  // Clear canvas (light background) and grid
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--canvas-bg');
+  ctx.fillRect(0,0,W,H);
+
+  // Grid
+  ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--canvas-grid');
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const step = 40;
+  for (let x=0; x<=W; x+=step){ ctx.moveTo(x+0.5,0); ctx.lineTo(x+0.5,H); }
+  for (let y=0; y<=H; y+=step){ ctx.moveTo(0,y+0.5); ctx.lineTo(W,y+0.5); }
+  ctx.stroke();
+
+  // Bricks
+  for (const br of state.bricks){
+    if (!br.alive) continue;
+    ctx.fillStyle = br.color || '#111';
+    ctx.fillRect(br.x, br.y, br.w, br.h);
+    // subtle inner line for readability
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeRect(br.x+0.5, br.y+0.5, br.w-1, br.h-1);
+  }
+
+  // Paddle
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--paddle');
+  ctx.fillRect(state.paddle.x, state.paddle.y, state.paddle.w, state.paddle.h);
+
+  // Balls
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--ball');
+  for (const b of state.balls){
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // HUD overlay (pause)
+  if (state.paused || state.modalOpen){
+    // overlay element handles on top
+  }
+}
+
+function loop(ts){
+  if (!lastRAF) lastRAF = ts;
+  const dt = Math.min(0.033, (ts - lastRAF)/1000); // cap dt
+  lastRAF = ts;
+
+  if (!state.paused && !state.modalOpen){
+    update(dt);
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+/* ================================
+   Controls & Keyboard
+   ================================ */
+const newGameBtn = $('#newGameBtn');
+const pauseBtn = $('#pauseBtn');
+const muteBtn = $('#muteBtn');
+
+function updateOverlay(){
+  const show = (state.paused || state.modalOpen);
+  overlay.hidden = !show;
+  overlay.setAttribute('aria-hidden', String(!show));
+  overlayText.textContent = state.modalOpen ? 'Question open — game paused' : (state.paused ? 'Paused' : '');
+}
+
+function updateStatsHUD(){
+  $('#hud-level').textContent = state.level;
+  $('#hud-score').textContent = state.score;
+  const acc = state.questionsAnswered ? Math.round(100*state.correctAnswers/state.questionsAnswered) : 0;
+  $('#hud-acc').textContent = acc + '%';
+
+  $('#stat-bricks').textContent = state.bricksCleared;
+  $('#stat-answered').textContent = state.questionsAnswered;
+  $('#stat-correct').textContent = state.correctAnswers;
+  $('#stat-acc').textContent = acc + '%';
+}
+
+function togglePause(explicit){
+  state.paused = (typeof explicit === 'boolean') ? explicit : !state.paused;
+  pauseBtn.setAttribute('aria-pressed', String(state.paused));
+  updateOverlay();
+  announce(state.paused ? 'Game paused.' : 'Game resumed.');
+}
+
+function toggleMute(){
+  state.muted = !state.muted;
+  muteBtn.setAttribute('aria-pressed', String(state.muted));
+  announce(state.muted ? 'Muted.' : 'Unmuted.');
+}
+
+newGameBtn.addEventListener('click', ()=>{
+  // Reset all
+  state.level = 1;
+  state.score = 0;
+  state.questionsAnswered = 0;
+  state.correctAnswers = 0;
+  state.bricksCleared = 0;
+  state.balls = [];
+  state.levelQuestions = [];
+  state.questionIndex = 0;
+  state.paused = false;
+  updateOverlay();
+  initLevel(1);
+  updateStatsHUD();
+  announce('New game started. Level 1.');
+});
+
+pauseBtn.addEventListener('click', ()=> togglePause());
+muteBtn.addEventListener('click', toggleMute);
+
+window.addEventListener('keydown', (e)=>{
+  if (state.modalOpen){
+    // In modal: Enter handled by form; Esc handled by dialog "cancel".
+    return;
+  }
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA'){ state.input.left = true; }
+  if (e.code === 'ArrowRight' || e.code === 'KeyD'){ state.input.right = true; }
+  if (e.code === 'KeyP'){ togglePause(); }
+  if (e.code === 'KeyM'){ toggleMute(); }
+});
+window.addEventListener('keyup', (e)=>{
+  if (state.modalOpen) return;
+  if (e.code === 'ArrowLeft' || e.code === 'KeyA'){ state.input.left = false; }
+  if (e.code === 'ArrowRight' || e.code === 'KeyD'){ state.input.right = false; }
+});
+
+/* ================================
+   Bootstrap
+   ================================ */
+function start(){
+  resizeCanvas();
+  initLevel(1);
+  updateStatsHUD();
+  requestAnimationFrame(loop);
+  // Ensure toggle buttons reflect state
+  pauseBtn.setAttribute('aria-pressed', 'false');
+  muteBtn.setAttribute('aria-pressed', 'false');
+}
+document.addEventListener('DOMContentLoaded', start);
+</script>
+</body>
+</html>
